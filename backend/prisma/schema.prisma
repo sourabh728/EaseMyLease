@@ -26,6 +26,39 @@ enum InventoryStatus {
   RETIRED
 }
 
+enum RentalStatus {
+  DRAFT
+  CONFIRMED
+  ACTIVE
+  RETURN_PENDING
+  COMPLETED
+  CANCELLED
+  OVERDUE
+}
+
+enum ReturnCondition {
+  GOOD
+  MINOR_DAMAGE
+  MAJOR_DAMAGE
+  MISSING_ACCESSORY
+  LOST
+}
+
+enum PaymentType {
+  RENT
+  DEPOSIT
+  LATE_FEE
+  DAMAGE_CHARGE
+  REFUND
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+  BANK_TRANSFER
+}
+
 model Tenant {
   id        String   @id @default(cuid())
   name      String
@@ -39,6 +72,11 @@ model Tenant {
   inventoryItems  InventoryItem[]
   inventoryImages InventoryImage[]
   customers       Customer[]
+  rentals         Rental[]
+  rentalItems     RentalItem[]
+  rentalReturns   RentalReturn[]
+  damageRecords   DamageRecord[]
+  payments        Payment[]
 }
 
 model User {
@@ -129,9 +167,11 @@ model InventoryItem {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
-  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  category Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  images   InventoryImage[]
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category     Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  images       InventoryImage[]
+  rentalItems  RentalItem[]
+  damageRecords DamageRecord[]
 
   @@unique([tenantId, itemCode])
   @@index([tenantId])
@@ -175,9 +215,163 @@ model Customer {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rentals Rental[]
 
   @@unique([tenantId, phone])
   @@index([tenantId])
   @@index([tenantId, name])
+}
+
+model Rental {
+  id                 String       @id @default(cuid())
+  tenantId           String
+  customerId         String
+  rentalNumber       String
+  rentalStartDate    DateTime
+  expectedReturnDate DateTime
+  actualReturnDate   DateTime?
+  subtotal           Decimal      @db.Decimal(12, 2)
+  discount           Decimal      @default(0) @db.Decimal(12, 2)
+  totalRent          Decimal      @db.Decimal(12, 2)
+  totalDeposit       Decimal      @db.Decimal(12, 2)
+  amountPaid         Decimal      @default(0) @db.Decimal(12, 2)
+  balanceAmount      Decimal      @db.Decimal(12, 2)
+  status             RentalStatus @default(DRAFT)
+  notes              String?      @db.Text
+  createdBy          String
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer      Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  items         RentalItem[]
+  returns       RentalReturn[]
+  damageRecords DamageRecord[]
+  payments      Payment[]
+
+  @@unique([tenantId, rentalNumber])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, customerId])
+  @@index([tenantId, rentalStartDate])
+  @@index([tenantId, expectedReturnDate])
+  @@index([status])
+}
+
+model RentalItem {
+  id                 String  @id @default(cuid())
+  tenantId           String
+  rentalId           String
+  inventoryItemId    String
+  rentalPrice        Decimal @db.Decimal(12, 2)
+  deposit            Decimal @default(0) @db.Decimal(12, 2)
+  conditionAtRelease String?
+  conditionAtReturn  String?
+  notes              String?
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rental        Rental         @relation(fields: [rentalId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem  @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  damageRecords DamageRecord[]
+
+  @@index([tenantId])
+  @@index([rentalId])
+  @@index([inventoryItemId])
+  @@index([tenantId, inventoryItemId])
+  @@unique([rentalId, inventoryItemId])
+}
+
+model RentalReturn {
+  id           String   @id @default(cuid())
+  tenantId     String
+  rentalId     String
+  returnDate   DateTime @default(now())
+  lateFee      Decimal  @default(0) @db.Decimal(12, 2)
+  notes        String?  @db.Text
+  createdBy    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rental        Rental              @relation(fields: [rentalId], references: [id], onDelete: Cascade)
+  items         RentalReturnItem[]
+  damageRecords DamageRecord[]
+
+  @@index([tenantId])
+  @@index([rentalId])
+  @@index([tenantId, returnDate])
+}
+
+model RentalReturnItem {
+  id                 String          @id @default(cuid())
+  tenantId           String
+  returnId           String
+  rentalItemId       String
+  inventoryItemId    String
+  condition          ReturnCondition
+  damageNotes        String?         @db.Text
+  missingAccessories String?
+  stains             Boolean         @default(false)
+  isLost             Boolean         @default(false)
+  additionalCharge   Decimal         @default(0) @db.Decimal(12, 2)
+  notes              String?         @db.Text
+  photoUrls          Json?
+
+  return RentalReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([returnId])
+  @@index([rentalItemId])
+  @@index([inventoryItemId])
+}
+
+model DamageRecord {
+  id              String   @id @default(cuid())
+  tenantId        String
+  rentalId        String
+  returnId        String?
+  rentalItemId    String?
+  inventoryItemId String
+  description     String   @db.Text
+  chargeAmount    Decimal  @default(0) @db.Decimal(12, 2)
+  photoUrls       Json?
+  createdBy       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rental        Rental         @relation(fields: [rentalId], references: [id], onDelete: Cascade)
+  return        RentalReturn?  @relation(fields: [returnId], references: [id], onDelete: SetNull)
+  rentalItem    RentalItem?    @relation(fields: [rentalItemId], references: [id], onDelete: SetNull)
+  inventoryItem InventoryItem  @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([rentalId])
+  @@index([returnId])
+  @@index([inventoryItemId])
+  @@index([tenantId, rentalId])
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  tenantId       String
+  rentalId       String
+  amount         Decimal       @db.Decimal(12, 2)
+  paymentType    PaymentType
+  method         PaymentMethod
+  transactionRef String?
+  paymentDate    DateTime      @default(now())
+  notes          String?       @db.Text
+  createdBy      String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rental Rental @relation(fields: [rentalId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([rentalId])
+  @@index([tenantId, paymentDate])
+  @@index([tenantId, paymentType])
 }
