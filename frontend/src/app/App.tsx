@@ -10,6 +10,12 @@ import { InventoryFormPage } from '@/pages/inventory/InventoryFormPage'
 import { CustomersListPage } from '@/pages/customers/CustomersListPage'
 import { CustomerFormPage } from '@/pages/customers/CustomerFormPage'
 import { SettingsPage } from '@/pages/settings/SettingsPage'
+import { RentalsListPage } from '@/pages/rentals/RentalsListPage'
+import { RentalCreatePage } from '@/pages/rentals/RentalCreatePage'
+import { RentalDetailPage } from '@/pages/rentals/RentalDetailPage'
+import { ReturnsListPage } from '@/pages/returns/ReturnsListPage'
+import { ReturnProcessPage } from '@/pages/returns/ReturnProcessPage'
+import { PaymentsListPage } from '@/pages/payments/PaymentsListPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useAuthSession } from '@/hooks/useAuthSession'
@@ -54,33 +60,12 @@ function AppRoutes() {
           <Route path="/customers/new" element={<CustomerFormPage />} />
           <Route path="/customers/:id" element={<CustomerFormPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route
-            path="/rentals"
-            element={
-              <PlaceholderPage
-                title="Rentals"
-                description="Create and manage rental bookings. This module arrives in Phase 3."
-              />
-            }
-          />
-          <Route
-            path="/returns"
-            element={
-              <PlaceholderPage
-                title="Returns"
-                description="Process returns, inspections, and late fees in Phase 3."
-              />
-            }
-          />
-          <Route
-            path="/payments"
-            element={
-              <PlaceholderPage
-                title="Payments"
-                description="Track deposits, balances, and payment history in Phase 3."
-              />
-            }
-          />
+          <Route path="/rentals" element={<RentalsListPage />} />
+          <Route path="/rentals/new" element={<RentalCreatePage />} />
+          <Route path="/rentals/:id" element={<RentalDetailPage />} />
+          <Route path="/returns" element={<ReturnsListPage />} />
+          <Route path="/returns/new" element={<ReturnProcessPage />} />
+          <Route path="/payments" element={<PaymentsListPage />} />
           <Route
             path="/reports"
             element={
