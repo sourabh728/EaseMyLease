@@ -156,6 +156,14 @@ export const RETURN_CONDITIONS: ReturnCondition[] = [
 export type PaymentType = 'RENT' | 'DEPOSIT' | 'LATE_FEE' | 'DAMAGE_CHARGE' | 'REFUND'
 export type PaymentMethod = 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER'
 
+export type DamageSettlementStatus = 'OPEN' | 'SETTLED' | 'WAIVED'
+
+export const DAMAGE_SETTLEMENT_STATUSES: DamageSettlementStatus[] = [
+  'OPEN',
+  'SETTLED',
+  'WAIVED',
+]
+
 export const PAYMENT_TYPES: PaymentType[] = [
   'RENT',
   'DEPOSIT',
@@ -227,11 +235,19 @@ export interface DamageRecord {
   inventoryItemId: string
   description: string
   chargeAmount: string
+  settlementStatus: DamageSettlementStatus
+  settledAt: string | null
   photoUrls: string[] | null
   createdBy: string
   createdAt: string
   updatedAt: string
   inventoryItem?: { id: string; itemCode: string; name: string }
+  rental?: {
+    id: string
+    rentalNumber: string
+    status: RentalStatus
+    customer?: { id: string; name: string; phone: string }
+  }
 }
 
 export interface RentalReturnItem {
@@ -298,6 +314,7 @@ export interface Rental {
     id: string
     name: string
     phone: string
+    whatsapp?: string | null
     email: string | null
     city: string | null
   }
@@ -323,3 +340,81 @@ export interface AvailabilityResponse {
   expectedReturnDate: string
   results: AvailabilityResult[]
 }
+
+export interface DashboardActivity {
+  type: 'RENTAL' | 'PAYMENT' | 'RETURN'
+  id: string
+  at: string
+  label: string
+  detail: string
+  amount: string
+  hrefId: string
+}
+
+export interface DashboardSummary {
+  todayRentals: number
+  todayReturns: number
+  currentlyRented: number
+  overdueRentals: number
+  todayRevenue: string
+  pendingPayments: number
+  availableInventory: number
+  recentActivities: DashboardActivity[]
+}
+
+export interface RevenueReport {
+  fromDate: string
+  toDate: string
+  totalInflow: number
+  totalRefunds: number
+  netRevenue: number
+  byType: Array<{ paymentType: string; amount: number }>
+  byDate: Array<{ date: string; inflow: number; refunds: number; net: number }>
+}
+
+export interface RentalsSummaryReport {
+  fromDate: string
+  toDate: string
+  createdInPeriod: number
+  completedInPeriod: number
+  byStatus: Array<{ status: string; count: number }>
+}
+
+export interface InventoryUtilizationReport {
+  total: number
+  onRent: number
+  activelyRentedDistinct: number
+  utilizationRate: number
+  byStatus: Array<{ status: string; count: number }>
+}
+
+export interface OutstandingReport {
+  totalOutstanding: string
+  pendingDepositExposure: string
+  openDamageCharges: string
+  pendingBalances: Array<{
+    id: string
+    rentalNumber: string
+    status: RentalStatus
+    totalRent: string
+    totalDeposit: string
+    amountPaid: string
+    balanceAmount: string
+    expectedReturnDate: string
+    customer?: { id: string; name: string; phone: string }
+  }>
+  openDamageRecords: Array<{
+    id: string
+    chargeAmount: string
+    description: string
+    settlementStatus: DamageSettlementStatus
+    createdAt: string
+    rental: {
+      id: string
+      rentalNumber: string
+      customer?: { name: string }
+    }
+    inventoryItem: { id: string; itemCode: string; name: string }
+  }>
+}
+

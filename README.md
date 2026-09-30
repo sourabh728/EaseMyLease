@@ -2,17 +2,18 @@
 
 Multi-tenant SaaS for rental businesses (garments, jewellery, costumes, and more).
 
-## Current status — Phase 3 (Rentals)
+## Current status — Phase 4 (Dashboard & reports)
 
 Monorepo with:
 
 - `frontend/` — React + Vite + TypeScript + Tailwind + TanStack Query + React Router
-- `backend/` — NestJS + Prisma + PostgreSQL + JWT + RBAC
+- `backend/` — NestJS + Prisma + PostgreSQL + JWT + RBAC + PDFKit receipts
 
 **Phase 1:** Auth, multi-tenant foundation, Shop/User models  
 **Phase 2:** Shop settings, categories, inventory CRUD, customers  
 **Phase 3:** Rentals workflow, availability/double-booking checks, returns + damage, payments  
-**Phase 4+ (not started):** Dashboard analytics depth, reports, PDF receipts, WhatsApp, QR, notifications, subscriptions
+**Phase 4:** Shop dashboard KPIs, reports, damage settlement UI, PDF receipts, WhatsApp share (`wa.me`)  
+**Phase 5+ (not started):** QR/barcode scanning, automated notifications, subscription/billing, multi-branch, advanced analytics
 
 ### Prerequisites
 
@@ -39,11 +40,29 @@ npx prisma migrate deploy
 npx prisma migrate dev
 ```
 
+If Postgres is unreachable, migration SQL still lives under `backend/prisma/migrations/` — run `migrate deploy` once the DB is up.
+
 Migrations:
 
 - `backend/prisma/migrations/20260930050000_init_tenant_user_shop/`
 - `backend/prisma/migrations/20260930060000_phase2_inventory_categories_customers/`
 - `backend/prisma/migrations/20260930070000_phase3_rentals_returns_payments/`
+- `backend/prisma/migrations/20260930110000_phase4_damage_settlement/`
+
+### Phase 4 APIs (tenant-scoped via JWT)
+
+| Method | Path | Roles | Description |
+|--------|------|-------|-------------|
+| GET | `/api/reports/dashboard` | OWNER, STAFF | Today KPIs + recent activity (marks OVERDUE on read) |
+| GET | `/api/reports/revenue` | OWNER, STAFF | Revenue by date range (`fromDate`, `toDate`) |
+| GET | `/api/reports/rentals` | OWNER, STAFF | Rentals summary by status / period |
+| GET | `/api/reports/inventory` | OWNER, STAFF | Inventory status + utilization |
+| GET | `/api/reports/outstanding` | OWNER, STAFF | Pending balances + open damage charges |
+| GET | `/api/rentals/:id/receipt` | OWNER, STAFF | PDF rental receipt download |
+| GET | `/api/damage-records` | OWNER, STAFF | List/filter damage (`settlementStatus`, search, pagination) |
+| PATCH | `/api/damage-records/:id` | OWNER, STAFF | Update charge / settlement status (`OPEN`/`SETTLED`/`WAIVED`) |
+
+ACTIVE rentals past `expectedReturnDate` are marked `OVERDUE` when listing/getting rentals or loading the dashboard (no cron).
 
 ### Phase 3 APIs (tenant-scoped via JWT)
 
@@ -84,6 +103,7 @@ Migrations:
 cd backend
 npm install
 npx prisma generate
+npx prisma migrate deploy
 npm run start:dev
 ```
 
@@ -109,4 +129,4 @@ App: `http://localhost:5173`
 
 ### Rental workflow (statuses)
 
-`DRAFT` → `CONFIRMED` (items RESERVED) → `ACTIVE` (items ON_RENT) → `RETURN_PENDING` or `COMPLETED` after return inspection → optional `CANCELLED` from DRAFT/CONFIRMED. Holding statuses for availability: CONFIRMED, ACTIVE, RETURN_PENDING, OVERDUE.
+`DRAFT` → `CONFIRMED` (items RESERVED) → `ACTIVE` (items ON_RENT) → optional `OVERDUE` when past expected return → `RETURN_PENDING` or `COMPLETED` after return inspection → optional `CANCELLED` from DRAFT/CONFIRMED. Holding statuses for availability: CONFIRMED, ACTIVE, RETURN_PENDING, OVERDUE.

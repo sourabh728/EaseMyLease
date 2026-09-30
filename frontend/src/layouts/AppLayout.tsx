@@ -13,6 +13,7 @@ const navItems = [
   { to: '/rentals', label: 'Rentals' },
   { to: '/returns', label: 'Returns' },
   { to: '/payments', label: 'Payments' },
+  { to: '/damage', label: 'Damage' },
   { to: '/reports', label: 'Reports' },
   { to: '/settings', label: 'Settings' },
 ] as const

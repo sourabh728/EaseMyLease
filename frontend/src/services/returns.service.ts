@@ -1,6 +1,7 @@
 import { api } from '@/api/client'
 import type {
   DamageRecord,
+  DamageSettlementStatus,
   PaginatedResponse,
   RentalReturn,
   ReturnCondition,
@@ -38,6 +39,21 @@ export type ReturnPayload = {
   items: ReturnItemPayload[]
 }
 
+export type DamageListParams = {
+  page?: number
+  pageSize?: number
+  search?: string
+  rentalId?: string
+  settlementStatus?: DamageSettlementStatus
+}
+
+export type DamageUpdatePayload = {
+  description?: string
+  chargeAmount?: number
+  photoUrls?: string[]
+  settlementStatus?: DamageSettlementStatus
+}
+
 export const returnsService = {
   list(params?: ReturnListParams) {
     return api.get<PaginatedResponse<RentalReturn>>('/returns', { params })
@@ -48,9 +64,12 @@ export const returnsService = {
   create(payload: ReturnPayload) {
     return api.post<RentalReturn>('/returns', payload)
   },
-  listDamage(rentalId?: string) {
-    return api.get<DamageRecord[]>('/damage-records', {
-      params: rentalId ? { rentalId } : undefined,
+  listDamage(params?: DamageListParams) {
+    return api.get<PaginatedResponse<DamageRecord>>('/damage-records', {
+      params,
     })
+  },
+  updateDamage(id: string, payload: DamageUpdatePayload) {
+    return api.patch<DamageRecord>(`/damage-records/${id}`, payload)
   },
 }

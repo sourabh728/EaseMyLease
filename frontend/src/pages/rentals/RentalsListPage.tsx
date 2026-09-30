@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { rentalsService } from '@/services/rentals.service'
 import { getErrorMessage } from '@/utils/error'
@@ -17,10 +17,20 @@ function money(value: string | number) {
   return Number.isFinite(n) ? n.toFixed(2) : '0.00'
 }
 
+function parseStatusParam(value: string | null): RentalStatus | '' {
+  if (!value) return ''
+  return (RENTAL_STATUSES as string[]).includes(value)
+    ? (value as RentalStatus)
+    : ''
+}
+
 export function RentalsListPage() {
+  const [searchParams] = useSearchParams()
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState<RentalStatus | ''>('')
+  const [status, setStatus] = useState<RentalStatus | ''>(() =>
+    parseStatusParam(searchParams.get('status')),
+  )
 
   const filters = useMemo(
     () => ({

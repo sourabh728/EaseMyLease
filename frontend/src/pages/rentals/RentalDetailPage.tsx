@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { rentalsService } from '@/services/rentals.service'
+import { buildWhatsAppShareUrl, rentalsService } from '@/services/rentals.service'
 import { paymentsService } from '@/services/payments.service'
 import { getErrorMessage } from '@/utils/error'
 import {
@@ -43,6 +43,7 @@ export function RentalDetailPage() {
   const queryClient = useQueryClient()
   const [actionError, setActionError] = useState<string | null>(null)
   const [showPayment, setShowPayment] = useState(false)
+  const [receiptBusy, setReceiptBusy] = useState(false)
 
   const rentalQuery = useQuery({
     queryKey: ['rentals', id],
@@ -55,6 +56,7 @@ export function RentalDetailPage() {
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ['rentals'] })
     await queryClient.invalidateQueries({ queryKey: ['payments'] })
+    await queryClient.invalidateQueries({ queryKey: ['reports'] })
   }
 
   const actionMutation = useMutation({
@@ -114,6 +116,8 @@ export function RentalDetailPage() {
       <ErrorState message={getErrorMessage(rentalQuery.error, 'Rental not found')} />
     )
   }
+
+  const whatsappUrl = buildWhatsAppShareUrl(rental)
 
   return (
     <section className="space-y-6">
@@ -198,7 +202,9 @@ export function RentalDetailPage() {
             </button>
           </>
         ) : null}
-        {rental.status === 'ACTIVE' || rental.status === 'OVERDUE' || rental.status === 'RETURN_PENDING' ? (
+        {rental.status === 'ACTIVE' ||
+        rental.status === 'OVERDUE' ||
+        rental.status === 'RETURN_PENDING' ? (
           <Link
             to={`/returns/new?rentalId=${rental.id}`}
             className={primaryButtonClassName() + ' inline-flex no-underline'}
@@ -215,6 +221,32 @@ export function RentalDetailPage() {
             Record payment
           </button>
         ) : null}
+        <button
+          type="button"
+          className={secondaryButtonClassName()}
+          disabled={receiptBusy}
+          onClick={async () => {
+            setReceiptBusy(true)
+            setActionError(null)
+            try {
+              await rentalsService.downloadReceipt(rental.id, rental.rentalNumber)
+            } catch (err) {
+              setActionError(getErrorMessage(err, 'Receipt download failed'))
+            } finally {
+              setReceiptBusy(false)
+            }
+          }}
+        >
+          {receiptBusy ? 'Preparing PDF…' : 'Download receipt'}
+        </button>
+        <a
+          href={whatsappUrl}
+          target="_blank"
+          rel="noreferrer"
+          className={secondaryButtonClassName() + ' inline-flex no-underline'}
+        >
+          Share on WhatsApp
+        </a>
       </div>
 
       {actionError ? <ErrorState message={actionError} /> : null}
@@ -325,6 +357,37 @@ export function RentalDetailPage() {
                     <td className="px-4 py-3">{p.paymentType}</td>
                     <td className="px-4 py-3">{p.method}</td>
                     <td className="px-4 py-3">₹{money(p.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      {(rental.damageRecords ?? []).length > 0 ? (
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="font-medium text-slate-900">Damage</h2>
+            <Link to="/damage" className="text-sm text-teal-700 hover:underline">
+              Manage all
+            </Link>
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Description</th>
+                  <th className="px-4 py-3 font-medium">Charge</th>
+                  <th className="px-4 py-3 font-medium">Settlement</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rental.damageRecords!.map((d) => (
+                  <tr key={d.id} className="border-b border-slate-100 last:border-0">
+                    <td className="px-4 py-3 text-slate-800">{d.description}</td>
+                    <td className="px-4 py-3">₹{money(d.chargeAmount)}</td>
+                    <td className="px-4 py-3">{d.settlementStatus ?? 'OPEN'}</td>
                   </tr>
                 ))}
               </tbody>

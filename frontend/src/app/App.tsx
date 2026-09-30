@@ -16,7 +16,8 @@ import { RentalDetailPage } from '@/pages/rentals/RentalDetailPage'
 import { ReturnsListPage } from '@/pages/returns/ReturnsListPage'
 import { ReturnProcessPage } from '@/pages/returns/ReturnProcessPage'
 import { PaymentsListPage } from '@/pages/payments/PaymentsListPage'
-import { PlaceholderPage } from '@/pages/PlaceholderPage'
+import { ReportsPage } from '@/pages/reports/ReportsPage'
+import { DamageListPage } from '@/pages/damage/DamageListPage'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { APP_NAME } from '@/constants'
@@ -66,15 +67,8 @@ function AppRoutes() {
           <Route path="/returns" element={<ReturnsListPage />} />
           <Route path="/returns/new" element={<ReturnProcessPage />} />
           <Route path="/payments" element={<PaymentsListPage />} />
-          <Route
-            path="/reports"
-            element={
-              <PlaceholderPage
-                title="Reports"
-                description="Revenue, utilization, and inventory reports come later."
-              />
-            }
-          />
+          <Route path="/damage" element={<DamageListPage />} />
+          <Route path="/reports" element={<ReportsPage />} />
         </Route>
       </Route>
 
