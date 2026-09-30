@@ -10,6 +10,9 @@ import { ShopsModule } from './shops/shops.module';
 import { CategoriesModule } from './categories/categories.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { CustomersModule } from './customers/customers.module';
+import { RentalsModule } from './rentals/rentals.module';
+import { ReturnsModule } from './returns/returns.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -31,6 +34,9 @@ import { CustomersModule } from './customers/customers.module';
     CategoriesModule,
     InventoryModule,
     CustomersModule,
+    RentalsModule,
+    ReturnsModule,
+    PaymentsModule,
   ],
   providers: [
     {
