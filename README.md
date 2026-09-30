@@ -2,12 +2,16 @@
 
 Multi-tenant SaaS for rental businesses (garments, jewellery, costumes, and more).
 
-## Phase 1 — Foundation (current)
+## Current status — Phase 2 (Inventory)
 
 Monorepo with:
 
 - `frontend/` — React + Vite + TypeScript + Tailwind + TanStack Query + React Router
 - `backend/` — NestJS + Prisma + PostgreSQL + JWT + RBAC
+
+**Phase 1:** Auth, multi-tenant foundation, Shop/User models  
+**Phase 2:** Shop settings, categories, inventory CRUD, customers  
+**Phase 3+ (not started):** Rentals, returns, payments, damages, reports, QR, notifications
 
 ### Prerequisites
 
@@ -32,11 +36,33 @@ cd backend
 npx prisma migrate dev
 ```
 
-If the database is not available yet, migration SQL is already present at:
+Migrations (apply with Postgres running):
 
-`backend/prisma/migrations/20260930050000_init_tenant_user_shop/migration.sql`
+- `backend/prisma/migrations/20260930050000_init_tenant_user_shop/`
+- `backend/prisma/migrations/20260930060000_phase2_inventory_categories_customers/`
 
-Apply later with `npx prisma migrate deploy` or `npx prisma migrate dev`.
+```bash
+cd backend
+npx prisma migrate deploy
+# or during local development:
+npx prisma migrate dev
+```
+
+### Phase 2 APIs (tenant-scoped via JWT)
+
+| Method | Path | Roles | Description |
+|--------|------|-------|-------------|
+| GET | `/api/shops` | OWNER, STAFF | List shops |
+| GET | `/api/shops/:id` | OWNER, STAFF | Get shop |
+| PATCH | `/api/shops/:id` | OWNER | Update shop profile/settings |
+| GET/POST | `/api/categories` | GET: OWNER/STAFF · POST: OWNER | List / create categories |
+| GET/PATCH/DELETE | `/api/categories/:id` | GET: OWNER/STAFF · mutate: OWNER | Category detail / update / soft-disable |
+| GET/POST | `/api/inventory` | OWNER, STAFF | List (filters+pagination) / create |
+| GET/PATCH | `/api/inventory/:id` | OWNER, STAFF | Get / update item |
+| DELETE | `/api/inventory/:id` | OWNER | Retire item (status=RETIRED) |
+| GET/POST | `/api/customers` | OWNER, STAFF | List (search+pagination) / create |
+| GET/PATCH | `/api/customers/:id` | OWNER, STAFF | Get / update |
+| DELETE | `/api/customers/:id` | OWNER | Delete customer |
 
 ### Run backend
 

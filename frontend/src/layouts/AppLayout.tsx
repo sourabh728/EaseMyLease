@@ -1,4 +1,4 @@
-import { Link, Outlet } from 'react-router-dom'
+import { NavLink, Outlet } from 'react-router-dom'
 import { APP_NAME } from '@/constants'
 
 interface AppLayoutProps {
@@ -6,15 +6,60 @@ interface AppLayoutProps {
   onLogout?: () => void
 }
 
+const navItems = [
+  { to: '/dashboard', label: 'Dashboard' },
+  { to: '/inventory', label: 'Inventory' },
+  { to: '/customers', label: 'Customers' },
+  { to: '/rentals', label: 'Rentals' },
+  { to: '/returns', label: 'Returns' },
+  { to: '/payments', label: 'Payments' },
+  { to: '/reports', label: 'Reports' },
+  { to: '/settings', label: 'Settings' },
+] as const
+
 export function AppLayout({ userName, onLogout }: AppLayoutProps) {
   return (
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-          <Link to="/dashboard" className="text-xl font-semibold text-teal-800 no-underline">
-            {APP_NAME}
-          </Link>
-          <div className="flex items-center gap-4 text-sm text-slate-600">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center justify-between gap-4">
+            <NavLink to="/dashboard" className="text-xl font-semibold text-teal-800 no-underline">
+              {APP_NAME}
+            </NavLink>
+            <div className="flex items-center gap-3 text-sm text-slate-600 sm:hidden">
+              {userName ? <span className="truncate max-w-28">{userName}</span> : null}
+              {onLogout ? (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 hover:bg-slate-50"
+                >
+                  Log out
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          <nav className="-mx-1 flex gap-1 overflow-x-auto pb-1 text-sm">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  [
+                    'whitespace-nowrap rounded-lg px-3 py-1.5 no-underline transition-colors',
+                    isActive
+                      ? 'bg-teal-700 text-white'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+                  ].join(' ')
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+
+          <div className="hidden items-center gap-4 text-sm text-slate-600 sm:flex">
             {userName ? <span>{userName}</span> : null}
             {onLogout ? (
               <button
@@ -28,7 +73,7 @@ export function AppLayout({ userName, onLogout }: AppLayoutProps) {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-8">
+      <main className="mx-auto max-w-6xl px-4 py-8">
         <Outlet />
       </main>
     </div>
