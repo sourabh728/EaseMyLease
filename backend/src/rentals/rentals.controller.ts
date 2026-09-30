@@ -2,12 +2,15 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { Role } from '@prisma/client';
 import { RentalsService } from './rentals.service';
 import { CreateRentalDto } from './dto/create-rental.dto';
@@ -44,6 +47,23 @@ export class RentalsController {
     @Query() query: ListRentalsQueryDto,
   ) {
     return this.rentalsService.list(tenantId, query);
+  }
+
+  @Get(':id/receipt')
+  @Roles(Role.SHOP_OWNER, Role.STAFF)
+  @Header('Content-Type', 'application/pdf')
+  async receipt(
+    @Param('id') id: string,
+    @TenantId() tenantId: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, rentalNumber } =
+      await this.rentalsService.generateReceiptPdf(tenantId, id);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="receipt-${rentalNumber}.pdf"`,
+    );
+    res.send(buffer);
   }
 
   @Get(':id')

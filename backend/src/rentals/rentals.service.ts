@@ -16,6 +16,7 @@ import { UpdateRentalDto } from './dto/update-rental.dto';
 import { ListRentalsQueryDto } from './dto/list-rentals-query.dto';
 import { CheckAvailabilityDto } from './dto/check-availability.dto';
 import { ReleaseRentalDto } from './dto/release-rental.dto';
+import { buildRentalReceiptPdf } from './receipt-pdf';
 
 /** Statuses that hold an inventory item for a date range (prevent double-booking). */
 export const HOLDING_RENTAL_STATUSES: RentalStatus[] = [
@@ -38,6 +39,7 @@ const rentalInclude = {
       id: true,
       name: true,
       phone: true,
+      whatsapp: true,
       email: true,
       city: true,
     },
@@ -71,6 +73,8 @@ export class RentalsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(tenantId: string, query: ListRentalsQueryDto) {
+    await this.markOverdue(tenantId);
+
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
     const where: Prisma.RentalWhereInput = { tenantId };
@@ -106,6 +110,8 @@ export class RentalsService {
   }
 
   async findOne(tenantId: string, id: string) {
+    await this.markOverdue(tenantId);
+
     const rental = await this.prisma.rental.findFirst({
       where: { id, tenantId },
       include: rentalInclude,
@@ -114,6 +120,68 @@ export class RentalsService {
       throw new NotFoundException('Rental not found');
     }
     return rental;
+  }
+
+  /** ACTIVE past expectedReturnDate → OVERDUE (simple on-read check). */
+  async markOverdue(tenantId: string) {
+    await this.prisma.rental.updateMany({
+      where: {
+        tenantId,
+        status: RentalStatus.ACTIVE,
+        expectedReturnDate: { lt: new Date() },
+      },
+      data: { status: RentalStatus.OVERDUE },
+    });
+  }
+
+  async generateReceiptPdf(tenantId: string, id: string) {
+    const rental = await this.prisma.rental.findFirst({
+      where: { id, tenantId },
+      include: {
+        customer: {
+          select: {
+            name: true,
+            phone: true,
+            email: true,
+            address: true,
+          },
+        },
+        items: {
+          include: {
+            inventoryItem: {
+              select: {
+                itemCode: true,
+                name: true,
+                size: true,
+                color: true,
+              },
+            },
+          },
+        },
+        payments: { orderBy: { paymentDate: 'asc' } },
+      },
+    });
+    if (!rental) {
+      throw new NotFoundException('Rental not found');
+    }
+
+    const shop = await this.prisma.shop.findFirst({
+      where: { tenantId },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        name: true,
+        phone: true,
+        email: true,
+        address: true,
+        city: true,
+        state: true,
+        pincode: true,
+        gstNumber: true,
+      },
+    });
+
+    const buffer = await buildRentalReceiptPdf(shop, rental);
+    return { buffer, rentalNumber: rental.rentalNumber };
   }
 
   async checkAvailability(tenantId: string, dto: CheckAvailabilityDto) {

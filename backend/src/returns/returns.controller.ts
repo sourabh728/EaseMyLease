@@ -14,6 +14,7 @@ import { CreateReturnDto } from './dto/create-return.dto';
 import { ListReturnsQueryDto } from './dto/list-returns-query.dto';
 import {
   CreateDamageRecordDto,
+  ListDamageQueryDto,
   UpdateDamageRecordDto,
 } from './dto/damage-record.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -58,9 +59,9 @@ export class ReturnsController {
   @Roles(Role.SHOP_OWNER, Role.STAFF)
   listDamage(
     @TenantId() tenantId: string,
-    @Query('rentalId') rentalId?: string,
+    @Query() query: ListDamageQueryDto,
   ) {
-    return this.returnsService.listDamage(tenantId, rentalId);
+    return this.returnsService.listDamage(tenantId, query);
   }
 
   @Post('damage-records')

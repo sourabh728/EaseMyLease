@@ -8,6 +8,7 @@ import {
   Prisma,
   RentalStatus,
   ReturnCondition,
+  DamageSettlementStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { paginateMeta } from '../common/dto/pagination-query.dto';
@@ -15,6 +16,7 @@ import { CreateReturnDto } from './dto/create-return.dto';
 import { ListReturnsQueryDto } from './dto/list-returns-query.dto';
 import {
   CreateDamageRecordDto,
+  ListDamageQueryDto,
   UpdateDamageRecordDto,
 } from './dto/damage-record.dto';
 
@@ -227,19 +229,58 @@ export class ReturnsService {
     });
   }
 
-  async listDamage(tenantId: string, rentalId?: string) {
-    return this.prisma.damageRecord.findMany({
-      where: {
-        tenantId,
-        ...(rentalId ? { rentalId } : {}),
-      },
-      include: {
-        inventoryItem: {
-          select: { id: true, itemCode: true, name: true },
+  async listDamage(tenantId: string, query: ListDamageQueryDto) {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 20;
+    const where: Prisma.DamageRecordWhereInput = { tenantId };
+
+    if (query.rentalId) where.rentalId = query.rentalId;
+    if (query.settlementStatus) where.settlementStatus = query.settlementStatus;
+    if (query.search?.trim()) {
+      const term = query.search.trim();
+      where.OR = [
+        { description: { contains: term, mode: 'insensitive' } },
+        { rental: { rentalNumber: { contains: term, mode: 'insensitive' } } },
+        {
+          inventoryItem: {
+            OR: [
+              { itemCode: { contains: term, mode: 'insensitive' } },
+              { name: { contains: term, mode: 'insensitive' } },
+            ],
+          },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        {
+          rental: {
+            customer: { name: { contains: term, mode: 'insensitive' } },
+          },
+        },
+      ];
+    }
+
+    const [total, data] = await this.prisma.$transaction([
+      this.prisma.damageRecord.count({ where }),
+      this.prisma.damageRecord.findMany({
+        where,
+        include: {
+          inventoryItem: {
+            select: { id: true, itemCode: true, name: true },
+          },
+          rental: {
+            select: {
+              id: true,
+              rentalNumber: true,
+              status: true,
+              customer: { select: { id: true, name: true, phone: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    return { data, meta: paginateMeta(total, page, pageSize) };
   }
 
   async createDamage(
@@ -335,6 +376,14 @@ export class ReturnsService {
           description: dto.description?.trim(),
           chargeAmount: dto.chargeAmount !== undefined ? newCharge : undefined,
           photoUrls: dto.photoUrls ?? undefined,
+          settlementStatus: dto.settlementStatus,
+          settledAt:
+            dto.settlementStatus === DamageSettlementStatus.SETTLED ||
+            dto.settlementStatus === DamageSettlementStatus.WAIVED
+              ? new Date()
+              : dto.settlementStatus === DamageSettlementStatus.OPEN
+                ? null
+                : undefined,
         },
       });
 

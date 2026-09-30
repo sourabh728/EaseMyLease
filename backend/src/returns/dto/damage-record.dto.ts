@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsEnum,
   IsNumber,
   IsOptional,
   IsString,
@@ -8,6 +9,8 @@ import {
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { DamageSettlementStatus } from '@prisma/client';
+import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class CreateDamageRecordDto {
   @IsString()
@@ -55,4 +58,18 @@ export class UpdateDamageRecordDto {
   @IsArray()
   @IsUrl({}, { each: true })
   photoUrls?: string[];
+
+  @IsOptional()
+  @IsEnum(DamageSettlementStatus)
+  settlementStatus?: DamageSettlementStatus;
+}
+
+export class ListDamageQueryDto extends PaginationQueryDto {
+  @IsOptional()
+  @IsString()
+  rentalId?: string;
+
+  @IsOptional()
+  @IsEnum(DamageSettlementStatus)
+  settlementStatus?: DamageSettlementStatus;
 }

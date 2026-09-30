@@ -13,6 +13,7 @@ import { CustomersModule } from './customers/customers.module';
 import { RentalsModule } from './rentals/rentals.module';
 import { ReturnsModule } from './returns/returns.module';
 import { PaymentsModule } from './payments/payments.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { PaymentsModule } from './payments/payments.module';
     RentalsModule,
     ReturnsModule,
     PaymentsModule,
+    ReportsModule,
   ],
   providers: [
     {
