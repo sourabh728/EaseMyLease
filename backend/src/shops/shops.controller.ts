@@ -1,6 +1,14 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  UseGuards,
+} from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { ShopsService } from './shops.service';
+import { UpdateShopDto } from './dto/update-shop.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { TenantGuard } from '../common/guards/tenant.guard';
@@ -22,5 +30,15 @@ export class ShopsController {
   @Roles(Role.SHOP_OWNER, Role.STAFF)
   getOne(@Param('id') id: string, @TenantId() tenantId: string) {
     return this.shopsService.findOneForTenant(id, tenantId);
+  }
+
+  @Patch(':id')
+  @Roles(Role.SHOP_OWNER)
+  update(
+    @Param('id') id: string,
+    @TenantId() tenantId: string,
+    @Body() dto: UpdateShopDto,
+  ) {
+    return this.shopsService.updateForTenant(id, tenantId, dto);
   }
 }

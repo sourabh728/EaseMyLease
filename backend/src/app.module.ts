@@ -7,6 +7,9 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { ShopsModule } from './shops/shops.module';
+import { CategoriesModule } from './categories/categories.module';
+import { InventoryModule } from './inventory/inventory.module';
+import { CustomersModule } from './customers/customers.module';
 
 @Module({
   imports: [
@@ -25,6 +28,9 @@ import { ShopsModule } from './shops/shops.module';
     UsersModule,
     TenantsModule,
     ShopsModule,
+    CategoriesModule,
+    InventoryModule,
+    CustomersModule,
   ],
   providers: [
     {
