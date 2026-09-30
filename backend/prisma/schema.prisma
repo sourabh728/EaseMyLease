@@ -59,6 +59,12 @@ enum PaymentMethod {
   BANK_TRANSFER
 }
 
+enum DamageSettlementStatus {
+  OPEN
+  SETTLED
+  WAIVED
+}
+
 model Tenant {
   id        String   @id @default(cuid())
   name      String
@@ -327,18 +333,20 @@ model RentalReturnItem {
 }
 
 model DamageRecord {
-  id              String   @id @default(cuid())
-  tenantId        String
-  rentalId        String
-  returnId        String?
-  rentalItemId    String?
-  inventoryItemId String
-  description     String   @db.Text
-  chargeAmount    Decimal  @default(0) @db.Decimal(12, 2)
-  photoUrls       Json?
-  createdBy       String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               String                  @id @default(cuid())
+  tenantId         String
+  rentalId         String
+  returnId         String?
+  rentalItemId     String?
+  inventoryItemId  String
+  description      String                  @db.Text
+  chargeAmount     Decimal                 @default(0) @db.Decimal(12, 2)
+  settlementStatus DamageSettlementStatus  @default(OPEN)
+  settledAt        DateTime?
+  photoUrls        Json?
+  createdBy        String
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
 
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   rental        Rental         @relation(fields: [rentalId], references: [id], onDelete: Cascade)
@@ -351,6 +359,7 @@ model DamageRecord {
   @@index([returnId])
   @@index([inventoryItemId])
   @@index([tenantId, rentalId])
+  @@index([tenantId, settlementStatus])
 }
 
 model Payment {
