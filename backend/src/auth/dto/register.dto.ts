@@ -3,8 +3,10 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   MinLength,
   MaxLength,
+  Length,
 } from 'class-validator';
 
 export class RegisterDto {
@@ -18,10 +20,11 @@ export class RegisterDto {
   @MaxLength(80)
   slug?: string;
 
+  /** Optional; User.name / shop.ownerName are derived from the email local-part. */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(120)
-  ownerName!: string;
+  ownerName?: string;
 
   @IsEmail()
   email!: string;
@@ -40,4 +43,10 @@ export class RegisterDto {
   @IsString()
   @MaxLength(120)
   shopName?: string;
+
+  /** 6-digit email OTP required to confirm registration */
+  @IsString()
+  @Length(6, 6)
+  @Matches(/^\d{6}$/)
+  otp!: string;
 }

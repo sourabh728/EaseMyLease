@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
+import { MailModule } from './mail/mail.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { TenantsModule } from './tenants/tenants.module';
@@ -14,6 +16,7 @@ import { RentalsModule } from './rentals/rentals.module';
 import { ReturnsModule } from './returns/returns.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ReportsModule } from './reports/reports.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -21,6 +24,7 @@ import { ReportsModule } from './reports/reports.module';
       isGlobal: true,
       envFilePath: ['.env'],
     }),
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       {
         ttl: 60_000,
@@ -28,6 +32,7 @@ import { ReportsModule } from './reports/reports.module';
       },
     ]),
     PrismaModule,
+    MailModule,
     AuthModule,
     UsersModule,
     TenantsModule,
@@ -39,6 +44,7 @@ import { ReportsModule } from './reports/reports.module';
     ReturnsModule,
     PaymentsModule,
     ReportsModule,
+    NotificationsModule,
   ],
   providers: [
     {

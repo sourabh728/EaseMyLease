@@ -78,6 +78,7 @@ export interface InventoryImage {
 export interface InventoryItem {
   id: string
   tenantId: string
+  shopId?: string | null
   categoryId: string
   itemCode: string
   name: string
@@ -100,12 +101,14 @@ export interface InventoryItem {
     parentId: string | null
     parent?: { id: string; name: string } | null
   }
+  shop?: { id: string; name: string } | null
   images?: InventoryImage[]
 }
 
 export interface Customer {
   id: string
   tenantId: string
+  shopId?: string | null
   name: string
   phone: string
   whatsapp: string | null
@@ -294,6 +297,7 @@ export interface RentalReturn {
 export interface Rental {
   id: string
   tenantId: string
+  shopId?: string | null
   customerId: string
   rentalNumber: string
   rentalStartDate: string

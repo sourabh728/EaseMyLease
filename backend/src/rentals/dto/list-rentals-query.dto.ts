@@ -9,6 +9,10 @@ export class ListRentalsQueryDto extends PaginationQueryDto {
 
   @IsOptional()
   @IsString()
+  shopId?: string;
+
+  @IsOptional()
+  @IsString()
   customerId?: string;
 
   @IsOptional()

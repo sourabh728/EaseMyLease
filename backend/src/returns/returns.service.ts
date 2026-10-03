@@ -19,6 +19,7 @@ import {
   ListDamageQueryDto,
   UpdateDamageRecordDto,
 } from './dto/damage-record.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const returnInclude = {
   rental: {
@@ -40,7 +41,10 @@ const returnInclude = {
 
 @Injectable()
 export class ReturnsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async list(tenantId: string, query: ListReturnsQueryDto) {
     const page = query.page ?? 1;
@@ -120,7 +124,7 @@ export class ReturnsService {
     const lateFee = new Prisma.Decimal(dto.lateFee ?? 0);
     const complete = dto.completeSettlement !== false;
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const rentalReturn = await tx.rentalReturn.create({
         data: {
           tenantId,
@@ -227,6 +231,14 @@ export class ReturnsService {
         include: returnInclude,
       });
     });
+
+    if (complete) {
+      void this.notifications
+        .sendReceiptSummary(tenantId, rental.id)
+        .catch(() => undefined);
+    }
+
+    return result;
   }
 
   async listDamage(tenantId: string, query: ListDamageQueryDto) {

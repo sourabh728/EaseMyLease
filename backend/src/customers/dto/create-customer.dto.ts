@@ -7,6 +7,10 @@ import {
 } from 'class-validator';
 
 export class CreateCustomerDto {
+  @IsOptional()
+  @IsString()
+  shopId?: string;
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(120)

@@ -21,6 +21,10 @@ const SORT_FIELDS = [
 export class ListInventoryQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
+  shopId?: string;
+
+  @IsOptional()
+  @IsString()
   categoryId?: string;
 
   /** Filter by a parent category: includes that category and its direct children. */

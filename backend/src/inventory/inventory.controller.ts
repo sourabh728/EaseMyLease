@@ -34,6 +34,29 @@ export class InventoryController {
     return this.inventoryService.list(tenantId, query);
   }
 
+  /** Lookup by unique itemCode (QR / barcode / manual entry). */
+  @Get('by-code/:itemCode')
+  @Roles(Role.SHOP_OWNER, Role.STAFF)
+  getByCode(
+    @Param('itemCode') itemCode: string,
+    @TenantId() tenantId: string,
+  ) {
+    return this.inventoryService.findByCode(tenantId, itemCode);
+  }
+
+  /**
+   * Resolve an item for rental/return flows (same tenant-scoped lookup,
+   * plus light rental-context hints).
+   */
+  @Get('resolve/:itemCode')
+  @Roles(Role.SHOP_OWNER, Role.STAFF)
+  resolveForFlow(
+    @Param('itemCode') itemCode: string,
+    @TenantId() tenantId: string,
+  ) {
+    return this.inventoryService.resolveForFlow(tenantId, itemCode);
+  }
+
   @Get(':id')
   @Roles(Role.SHOP_OWNER, Role.STAFF)
   getOne(@Param('id') id: string, @TenantId() tenantId: string) {

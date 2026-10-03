@@ -17,6 +17,7 @@ import { ListRentalsQueryDto } from './dto/list-rentals-query.dto';
 import { CheckAvailabilityDto } from './dto/check-availability.dto';
 import { ReleaseRentalDto } from './dto/release-rental.dto';
 import { buildRentalReceiptPdf } from './receipt-pdf';
+import { resolveShopId } from '../common/utils/shop-context';
 
 /** Statuses that hold an inventory item for a date range (prevent double-booking). */
 export const HOLDING_RENTAL_STATUSES: RentalStatus[] = [
@@ -80,6 +81,7 @@ export class RentalsService {
     const where: Prisma.RentalWhereInput = { tenantId };
 
     if (query.status) where.status = query.status;
+    if (query.shopId) where.shopId = query.shopId;
     if (query.customerId) where.customerId = query.customerId;
     if (query.fromDate || query.toDate) {
       where.rentalStartDate = {};
@@ -269,10 +271,12 @@ export class RentalsService {
 
     const totals = this.computeTotals(pricedItems, dto.discount ?? 0);
     const rentalNumber = await this.nextRentalNumber(tenantId);
+    const shopId = await resolveShopId(this.prisma, tenantId, dto.shopId);
 
     return this.prisma.rental.create({
       data: {
         tenantId,
+        shopId,
         customerId: dto.customerId,
         rentalNumber,
         rentalStartDate: start,

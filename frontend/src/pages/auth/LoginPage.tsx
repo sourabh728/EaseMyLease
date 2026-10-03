@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authService } from '@/services/auth.service'
 import { STORAGE_KEYS } from '@/constants'
+import { getErrorMessage } from '@/utils/error'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -19,8 +20,8 @@ export function LoginPage() {
       const { data } = await authService.login({ email, password })
       localStorage.setItem(STORAGE_KEYS.accessToken, data.accessToken)
       navigate('/dashboard')
-    } catch {
-      setError('Invalid email or password')
+    } catch (err) {
+      setError(getErrorMessage(err, 'Invalid email or password'))
     } finally {
       setSubmitting(false)
     }
@@ -40,6 +41,7 @@ export function LoginPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-teal-600"
+            autoComplete="email"
           />
         </label>
         <label className="block text-sm">
@@ -51,7 +53,13 @@ export function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-teal-600"
+            autoComplete="current-password"
           />
+          <span className="mt-1.5 block text-right">
+            <Link to="/forgot-password" className="text-sm text-teal-700 hover:underline">
+              Forgot password?
+            </Link>
+          </span>
         </label>
 
         {error ? <p className="text-sm text-red-600">{error}</p> : null}

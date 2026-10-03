@@ -409,4 +409,252 @@ export class ReportsService {
       openDamageRecords: openDamage,
     };
   }
+
+  async revenueTrend(
+    tenantId: string,
+    fromDate?: string,
+    toDate?: string,
+    granularity: 'day' | 'week' = 'day',
+  ) {
+    const base = await this.revenue(tenantId, fromDate, toDate);
+    if (granularity === 'day') {
+      return { ...base, granularity: 'day' as const, series: base.byDate };
+    }
+
+    const byWeek = new Map<
+      string,
+      { period: string; inflow: number; refunds: number; net: number }
+    >();
+    for (const row of base.byDate) {
+      const d = new Date(row.date + 'T00:00:00');
+      const weekStart = startOfWeek(d);
+      const key = dayKey(weekStart);
+      const agg = byWeek.get(key) ?? {
+        period: key,
+        inflow: 0,
+        refunds: 0,
+        net: 0,
+      };
+      agg.inflow += row.inflow;
+      agg.refunds += row.refunds;
+      agg.net += row.net;
+      byWeek.set(key, agg);
+    }
+
+    return {
+      fromDate: base.fromDate,
+      toDate: base.toDate,
+      totalInflow: base.totalInflow,
+      totalRefunds: base.totalRefunds,
+      netRevenue: base.netRevenue,
+      granularity: 'week' as const,
+      series: [...byWeek.values()],
+    };
+  }
+
+  async topRentedItems(tenantId: string, fromDate?: string, toDate?: string) {
+    const { from, to } = resolveDateRange(fromDate, toDate);
+    const rows = await this.prisma.rentalItem.findMany({
+      where: {
+        tenantId,
+        rental: {
+          status: { not: RentalStatus.CANCELLED },
+          rentalStartDate: { gte: from, lte: to },
+        },
+      },
+      select: {
+        inventoryItemId: true,
+        rentalPrice: true,
+        inventoryItem: {
+          select: {
+            itemCode: true,
+            name: true,
+            category: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+
+    const map = new Map<
+      string,
+      {
+        inventoryItemId: string;
+        itemCode: string;
+        name: string;
+        categoryName: string | null;
+        rentalCount: number;
+        revenue: number;
+      }
+    >();
+    for (const row of rows) {
+      const cur = map.get(row.inventoryItemId) ?? {
+        inventoryItemId: row.inventoryItemId,
+        itemCode: row.inventoryItem.itemCode,
+        name: row.inventoryItem.name,
+        categoryName: row.inventoryItem.category?.name ?? null,
+        rentalCount: 0,
+        revenue: 0,
+      };
+      cur.rentalCount += 1;
+      cur.revenue += Number(row.rentalPrice);
+      map.set(row.inventoryItemId, cur);
+    }
+
+    const items = [...map.values()].sort(
+      (a, b) => b.rentalCount - a.rentalCount || b.revenue - a.revenue,
+    );
+    return {
+      fromDate: from.toISOString(),
+      toDate: to.toISOString(),
+      items: items.slice(0, 25),
+    };
+  }
+
+  async topCategories(tenantId: string, fromDate?: string, toDate?: string) {
+    const top = await this.topRentedItems(tenantId, fromDate, toDate);
+    const map = new Map<
+      string,
+      { categoryName: string; rentalCount: number; revenue: number }
+    >();
+    for (const item of top.items) {
+      const name = item.categoryName ?? 'Uncategorized';
+      const cur = map.get(name) ?? {
+        categoryName: name,
+        rentalCount: 0,
+        revenue: 0,
+      };
+      cur.rentalCount += item.rentalCount;
+      cur.revenue += item.revenue;
+      map.set(name, cur);
+    }
+    return {
+      fromDate: top.fromDate,
+      toDate: top.toDate,
+      categories: [...map.values()].sort(
+        (a, b) => b.rentalCount - a.rentalCount,
+      ),
+    };
+  }
+
+  async customerAnalytics(
+    tenantId: string,
+    fromDate?: string,
+    toDate?: string,
+  ) {
+    const { from, to } = resolveDateRange(fromDate, toDate);
+    const rentals = await this.prisma.rental.findMany({
+      where: {
+        tenantId,
+        status: { not: RentalStatus.CANCELLED },
+        rentalStartDate: { gte: from, lte: to },
+      },
+      select: {
+        customerId: true,
+        totalRent: true,
+        customer: { select: { id: true, name: true, phone: true, email: true } },
+      },
+    });
+
+    const map = new Map<
+      string,
+      {
+        customerId: string;
+        name: string;
+        phone: string;
+        email: string | null;
+        rentalCount: number;
+        totalSpend: number;
+      }
+    >();
+    for (const r of rentals) {
+      const cur = map.get(r.customerId) ?? {
+        customerId: r.customerId,
+        name: r.customer.name,
+        phone: r.customer.phone,
+        email: r.customer.email,
+        rentalCount: 0,
+        totalSpend: 0,
+      };
+      cur.rentalCount += 1;
+      cur.totalSpend += Number(r.totalRent);
+      map.set(r.customerId, cur);
+    }
+
+    const customers = [...map.values()];
+    const repeatCustomers = customers.filter((c) => c.rentalCount >= 2).length;
+    const uniqueCustomers = customers.length;
+    const repeatRate =
+      uniqueCustomers > 0
+        ? Number(((repeatCustomers / uniqueCustomers) * 100).toFixed(1))
+        : 0;
+
+    return {
+      fromDate: from.toISOString(),
+      toDate: to.toISOString(),
+      uniqueCustomers,
+      repeatCustomers,
+      repeatRate,
+      topCustomers: customers
+        .sort((a, b) => b.rentalCount - a.rentalCount || b.totalSpend - a.totalSpend)
+        .slice(0, 25),
+    };
+  }
+
+  async overdueAging(tenantId: string) {
+    await this.markOverdue(tenantId);
+    const overdue = await this.prisma.rental.findMany({
+      where: { tenantId, status: RentalStatus.OVERDUE },
+      select: {
+        id: true,
+        rentalNumber: true,
+        expectedReturnDate: true,
+        balanceAmount: true,
+        totalRent: true,
+        customer: { select: { id: true, name: true, phone: true } },
+      },
+      orderBy: { expectedReturnDate: 'asc' },
+    });
+
+    const now = startOfDay(new Date());
+    const buckets = {
+      '0-3': [] as typeof overdue,
+      '4-7': [] as typeof overdue,
+      '8-14': [] as typeof overdue,
+      '15+': [] as typeof overdue,
+    };
+
+    const rows = overdue.map((r) => {
+      const days = Math.max(
+        0,
+        Math.floor(
+          (now.getTime() - startOfDay(r.expectedReturnDate).getTime()) /
+            (24 * 60 * 60 * 1000),
+        ),
+      );
+      const bucket =
+        days <= 3 ? '0-3' : days <= 7 ? '4-7' : days <= 14 ? '8-14' : '15+';
+      buckets[bucket].push(r);
+      return { ...r, daysOverdue: days, bucket };
+    });
+
+    return {
+      totalOverdue: overdue.length,
+      buckets: {
+        '0-3': buckets['0-3'].length,
+        '4-7': buckets['4-7'].length,
+        '8-14': buckets['8-14'].length,
+        '15+': buckets['15+'].length,
+      },
+      rentals: rows,
+    };
+  }
+}
+
+function startOfWeek(d: Date) {
+  const x = new Date(d);
+  const day = x.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  x.setDate(x.getDate() + diff);
+  x.setHours(0, 0, 0, 0);
+  return x;
 }

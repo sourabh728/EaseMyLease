@@ -6,6 +6,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateShopDto } from './dto/update-shop.dto';
+import { CreateShopDto } from './dto/create-shop.dto';
 
 @Injectable()
 export class ShopsService {
@@ -16,6 +17,47 @@ export class ShopsService {
       where: { tenantId },
       orderBy: { createdAt: 'asc' },
     });
+  }
+
+  async createForTenant(tenantId: string, dto: CreateShopDto) {
+    try {
+      return await this.prisma.shop.create({
+        data: {
+          tenantId,
+          name: dto.name.trim(),
+          logo: dto.logo?.trim() || null,
+          ownerName: dto.ownerName?.trim() || null,
+          phone: dto.phone?.trim() || null,
+          whatsapp: dto.whatsapp?.trim() || null,
+          email: dto.email?.trim() || null,
+          address: dto.address?.trim() || null,
+          city: dto.city?.trim() || null,
+          state: dto.state?.trim() || null,
+          pincode: dto.pincode?.trim() || null,
+          gstNumber: dto.gstNumber?.trim() || null,
+          businessHours: dto.businessHours
+            ? (dto.businessHours as Prisma.InputJsonValue)
+            : undefined,
+          rentalTerms: dto.rentalTerms?.trim() || null,
+          defaultDeposit:
+            dto.defaultDeposit !== undefined
+              ? new Prisma.Decimal(dto.defaultDeposit)
+              : null,
+          defaultLateCharge:
+            dto.defaultLateCharge !== undefined
+              ? new Prisma.Decimal(dto.defaultLateCharge)
+              : null,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new BadRequestException('A shop with this name already exists');
+      }
+      throw error;
+    }
   }
 
   async findOneForTenant(id: string, tenantId: string) {

@@ -2,18 +2,18 @@
 
 Multi-tenant SaaS for rental businesses (garments, jewellery, costumes, and more).
 
-## Current status — Phase 4 (Dashboard & reports)
+## Current status — Phase 5 (QR, notifications, billing foundation, branches, analytics)
 
 Monorepo with:
 
 - `frontend/` — React + Vite + TypeScript + Tailwind + TanStack Query + React Router
-- `backend/` — NestJS + Prisma + PostgreSQL + JWT + RBAC + PDFKit receipts
+- `backend/` — NestJS + Prisma + PostgreSQL + JWT + RBAC + PDFKit receipts + `@nestjs/schedule`
 
 **Phase 1:** Auth, multi-tenant foundation, Shop/User models  
 **Phase 2:** Shop settings, categories, inventory CRUD, customers  
 **Phase 3:** Rentals workflow, availability/double-booking checks, returns + damage, payments  
 **Phase 4:** Shop dashboard KPIs, reports, damage settlement UI, PDF receipts, WhatsApp share (`wa.me`)  
-**Phase 5+ (not started):** QR/barcode scanning, automated notifications, subscription/billing, multi-branch, advanced analytics
+**Phase 5:** QR/barcode lookup + scan UI, email rental reminders + receipt summary, subscription plan fields (manual SUPER_ADMIN assignment), multi-branch shops + shop switcher, advanced analytics tabs  
 
 ### Prerequisites
 
@@ -29,6 +29,11 @@ cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
 ```
 
+Phase 5 env flags (backend):
+
+- `ENABLE_RENTAL_REMINDERS=true` — daily Cron at 08:00 for due/overdue emails (default on when unset)
+- SMTP vars — same as OTP; if unset in dev, reminder/receipt emails are logged to the server console
+
 ### Database migrate
 
 With PostgreSQL running and `DATABASE_URL` / `DIRECT_URL` set in `backend/.env`:
@@ -40,14 +45,31 @@ npx prisma migrate deploy
 npx prisma migrate dev
 ```
 
-If Postgres is unreachable, migration SQL still lives under `backend/prisma/migrations/` — run `migrate deploy` once the DB is up.
+Migrations include Phase 5:
 
-Migrations:
+- `backend/prisma/migrations/20261003143000_phase5_qr_notifications_billing_branches/`
 
-- `backend/prisma/migrations/20260930050000_init_tenant_user_shop/`
-- `backend/prisma/migrations/20260930060000_phase2_inventory_categories_customers/`
-- `backend/prisma/migrations/20260930070000_phase3_rentals_returns_payments/`
-- `backend/prisma/migrations/20260930110000_phase4_damage_settlement/`
+### Phase 5 APIs (tenant-scoped via JWT unless noted)
+
+| Method | Path | Roles | Description |
+|--------|------|-------|-------------|
+| GET | `/api/inventory/by-code/:itemCode` | OWNER, STAFF | Tenant-scoped item lookup by code |
+| GET | `/api/inventory/resolve/:itemCode` | OWNER, STAFF | Lookup + rental/return suggestion |
+| POST | `/api/shops` | OWNER | Create additional branch/shop |
+| GET | `/api/tenants/me` | OWNER, STAFF | Tenant + plan + usage / soft-limit warning |
+| GET | `/api/tenants` | SUPER_ADMIN | List all tenants |
+| PATCH | `/api/tenants/:id/subscription` | SUPER_ADMIN | Manual plan/status assignment |
+| POST | `/api/rentals/:id/send-reminder` | OWNER, STAFF | Manual due/overdue reminder email + wa.me stub |
+| POST | `/api/notifications/run-reminders` | OWNER | Trigger reminder job manually |
+| GET | `/api/reports/revenue-trend` | OWNER, STAFF | Revenue by day/week (`granularity`) |
+| GET | `/api/reports/top-items` | OWNER, STAFF | Top rented items |
+| GET | `/api/reports/top-categories` | OWNER, STAFF | Top categories |
+| GET | `/api/reports/customers` | OWNER, STAFF | Repeat rate + top customers |
+| GET | `/api/reports/overdue-aging` | OWNER, STAFF | Overdue aging buckets |
+
+Optional `shopId` on inventory/customer/rental create + list filters. Existing rows backfilled to the tenant’s first shop.
+
+**Deferred / future:** WhatsApp Cloud API (wa.me only), payment gateway checkout, hard inventory blocking, Elasticsearch.
 
 ### Phase 4 APIs (tenant-scoped via JWT)
 
@@ -62,7 +84,7 @@ Migrations:
 | GET | `/api/damage-records` | OWNER, STAFF | List/filter damage (`settlementStatus`, search, pagination) |
 | PATCH | `/api/damage-records/:id` | OWNER, STAFF | Update charge / settlement status (`OPEN`/`SETTLED`/`WAIVED`) |
 
-ACTIVE rentals past `expectedReturnDate` are marked `OVERDUE` when listing/getting rentals or loading the dashboard (no cron).
+ACTIVE rentals past `expectedReturnDate` are marked `OVERDUE` when listing/getting rentals or loading the dashboard; Phase 5 Cron also marks overdue before daily reminders.
 
 ### Phase 3 APIs (tenant-scoped via JWT)
 
@@ -86,6 +108,7 @@ ACTIVE rentals past `expectedReturnDate` are marked `OVERDUE` when listing/getti
 | Method | Path | Roles | Description |
 |--------|------|-------|-------------|
 | GET | `/api/shops` | OWNER, STAFF | List shops |
+| POST | `/api/shops` | OWNER | Create shop/branch |
 | GET | `/api/shops/:id` | OWNER, STAFF | Get shop |
 | PATCH | `/api/shops/:id` | OWNER | Update shop profile/settings |
 | GET/POST | `/api/categories` | GET: OWNER/STAFF · POST: OWNER | List / create categories |
@@ -123,9 +146,12 @@ App: `http://localhost:5173`
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/auth/register` | Create Tenant + SHOP_OWNER User + Shop |
-| POST | `/api/auth/login` | Login, returns JWT |
+| POST | `/api/auth/register` | Create Tenant + SHOP_OWNER User + Shop (OTP required) |
+| POST | `/api/auth/login` | Login, returns JWT (may require OTP) |
 | GET | `/api/auth/me` | Current user (Bearer token) |
+| POST | `/api/auth/send-otp` | Send email OTP |
+| POST | `/api/auth/verify-login-otp` | Complete OTP login |
+| POST | `/api/auth/reset-password` | Reset password with OTP |
 
 ### Rental workflow (statuses)
 

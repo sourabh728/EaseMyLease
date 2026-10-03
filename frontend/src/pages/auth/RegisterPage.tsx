@@ -1,37 +1,57 @@
 import { useState } from 'react'
-import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { authService } from '@/services/auth.service'
 import { STORAGE_KEYS } from '@/constants'
+import { getErrorMessage } from '@/utils/error'
+import type { PendingRegisterPayload } from '@/types/auth'
+import {
+  fieldClassName,
+  labelClassName,
+  primaryButtonClassName,
+} from '@/components/ui'
+
+const registerSchema = z.object({
+  businessName: z.string().min(1, 'Business name is required').max(120),
+  email: z.string().email('Enter a valid email'),
+  phone: z.string().max(20).optional().or(z.literal('')),
+  password: z.string().min(8, 'Password must be at least 8 characters').max(128),
+})
+
+type RegisterForm = z.infer<typeof registerSchema>
 
 export function RegisterPage() {
   const navigate = useNavigate()
-  const [businessName, setBusinessName] = useState('')
-  const [ownerName, setOwnerName] = useState('')
-  const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
-  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault()
+  const form = useForm<RegisterForm>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      businessName: '',
+      email: '',
+      phone: '',
+      password: '',
+    },
+  })
+
+  async function onSubmit(values: RegisterForm) {
     setError(null)
-    setSubmitting(true)
+    const email = values.email.trim()
     try {
-      const { data } = await authService.register({
-        businessName,
-        ownerName,
+      await authService.sendOtp({ email, purpose: 'REGISTER' })
+
+      const pending: PendingRegisterPayload = {
+        businessName: values.businessName.trim(),
         email,
-        phone: phone || undefined,
-        password,
-      })
-      localStorage.setItem(STORAGE_KEYS.accessToken, data.accessToken)
-      navigate('/dashboard')
-    } catch {
-      setError('Registration failed. Email may already be in use.')
-    } finally {
-      setSubmitting(false)
+        password: values.password,
+        phone: values.phone?.trim() || undefined,
+      }
+      sessionStorage.setItem(STORAGE_KEYS.pendingRegister, JSON.stringify(pending))
+      navigate('/register/verify-email')
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not send verification code.'))
     }
   }
 
@@ -39,66 +59,66 @@ export function RegisterPage() {
     <div>
       <h1 className="text-xl font-semibold text-slate-900">Create your shop</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Registers a tenant, shop owner, and first shop
+        Enter your shop details. We&apos;ll email a code to verify your address before creating the
+        account.
       </p>
 
-      <form className="mt-6 space-y-4" onSubmit={onSubmit}>
+      <form className="mt-6 space-y-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
         <label className="block text-sm">
-          <span className="mb-1 block text-slate-700">Business name</span>
+          <span className={labelClassName()}>Business name</span>
           <input
-            required
-            value={businessName}
-            onChange={(e) => setBusinessName(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-teal-600"
+            {...form.register('businessName')}
+            className={fieldClassName()}
+            autoComplete="organization"
           />
+          {form.formState.errors.businessName ? (
+            <p className="mt-1 text-sm text-red-600">
+              {form.formState.errors.businessName.message}
+            </p>
+          ) : null}
         </label>
+
         <label className="block text-sm">
-          <span className="mb-1 block text-slate-700">Owner name</span>
-          <input
-            required
-            value={ownerName}
-            onChange={(e) => setOwnerName(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-teal-600"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-slate-700">Email</span>
+          <span className={labelClassName()}>Email</span>
           <input
             type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-teal-600"
+            {...form.register('email')}
+            className={fieldClassName()}
+            autoComplete="email"
           />
+          {form.formState.errors.email ? (
+            <p className="mt-1 text-sm text-red-600">{form.formState.errors.email.message}</p>
+          ) : null}
         </label>
+
         <label className="block text-sm">
-          <span className="mb-1 block text-slate-700">Phone (optional)</span>
-          <input
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-teal-600"
-          />
+          <span className={labelClassName()}>Phone (optional)</span>
+          <input {...form.register('phone')} className={fieldClassName()} autoComplete="tel" />
         </label>
+
         <label className="block text-sm">
-          <span className="mb-1 block text-slate-700">Password</span>
+          <span className={labelClassName()}>Password</span>
           <input
             type="password"
-            required
-            minLength={8}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-teal-600"
+            {...form.register('password')}
+            className={fieldClassName()}
+            autoComplete="new-password"
           />
+          {form.formState.errors.password ? (
+            <p className="mt-1 text-sm text-red-600">{form.formState.errors.password.message}</p>
+          ) : null}
         </label>
 
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
         <button
           type="submit"
-          disabled={submitting}
-          className="w-full rounded-lg bg-teal-700 px-4 py-2.5 font-medium text-white hover:bg-teal-800 disabled:opacity-60"
+          disabled={form.formState.isSubmitting}
+          className={`w-full ${primaryButtonClassName()}`}
         >
-          {submitting ? 'Creating…' : 'Create account'}
+          {form.formState.isSubmitting
+            ? 'Sending verification…'
+            : 'Verify email & create account'}
         </button>
       </form>
 

@@ -5,6 +5,9 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { shopsService } from '@/services/shops.service'
 import { categoriesService } from '@/services/categories.service'
+import { tenantsService } from '@/services/tenants.service'
+import { notificationsService } from '@/services/notifications.service'
+import { useActiveShop } from '@/hooks/useActiveShop'
 import { getErrorMessage } from '@/utils/error'
 import {
   EmptyState,
@@ -62,13 +65,23 @@ export function SettingsPage() {
   const queryClient = useQueryClient()
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [shopMessage, setShopMessage] = useState<string | null>(null)
+  const [selectedShopId, setSelectedShopId] = useState<string | null>(null)
+  const [newBranchName, setNewBranchName] = useState('')
+  const { setActiveShopId } = useActiveShop()
 
   const shopsQuery = useQuery({
     queryKey: ['shops'],
     queryFn: async () => (await shopsService.list()).data,
   })
 
-  const shop = shopsQuery.data?.[0]
+  const tenantQuery = useQuery({
+    queryKey: ['tenants', 'me'],
+    queryFn: async () => (await tenantsService.me()).data,
+  })
+
+  const shops = shopsQuery.data ?? []
+  const shop =
+    shops.find((s) => s.id === selectedShopId) ?? shops[0] ?? undefined
 
   const categoriesQuery = useQuery({
     queryKey: ['categories', 'all'],
@@ -107,6 +120,12 @@ export function SettingsPage() {
   })
 
   useEffect(() => {
+    if (shops.length && !selectedShopId) {
+      setSelectedShopId(shops[0].id)
+    }
+  }, [shops, selectedShopId])
+
+  useEffect(() => {
     if (!shop) return
     shopForm.reset({
       name: shop.name,
@@ -128,6 +147,22 @@ export function SettingsPage() {
       defaultLateCharge: shop.defaultLateCharge ?? '',
     })
   }, [shop, shopForm])
+
+  const createBranchMutation = useMutation({
+    mutationFn: async (name: string) =>
+      (await shopsService.create({ name })).data,
+    onSuccess: async (created) => {
+      setNewBranchName('')
+      setSelectedShopId(created.id)
+      setActiveShopId(created.id)
+      setShopMessage('Branch created.')
+      await queryClient.invalidateQueries({ queryKey: ['shops'] })
+    },
+  })
+
+  const runRemindersMutation = useMutation({
+    mutationFn: async () => (await notificationsService.runReminders()).data,
+  })
 
   const saveShopMutation = useMutation({
     mutationFn: async (values: ShopFormValues) => {
@@ -196,14 +231,127 @@ export function SettingsPage() {
 
   const categories = categoriesQuery.data ?? []
   const rootCategories = categories.filter((c) => !c.parentId)
+  const tenant = tenantQuery.data
 
   return (
     <section className="space-y-10">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Settings</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Shop profile, rental defaults, and category catalog.
+          Plan, branches, shop profile, rental defaults, and categories.
         </p>
+      </div>
+
+      <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="text-lg font-medium text-slate-900">Subscription</h2>
+        {tenantQuery.isLoading ? <LoadingState message="Loading plan…" /> : null}
+        {tenant ? (
+          <>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <p className="text-xs uppercase text-slate-500">Plan</p>
+                <p className="mt-1 font-semibold text-slate-900">{tenant.plan}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase text-slate-500">Status</p>
+                <p className="mt-1 font-semibold text-slate-900">{tenant.subscriptionStatus}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase text-slate-500">Trial ends</p>
+                <p className="mt-1 text-slate-800">
+                  {tenant.trialEndsAt ? tenant.trialEndsAt.slice(0, 10) : '—'}
+                </p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600">
+              Inventory: {tenant.usage.inventoryCount} / soft limit{' '}
+              {tenant.usage.freeInventorySoftLimit} (FREE) · Branches:{' '}
+              {tenant.usage.shopCount}
+            </p>
+            {tenant.freeLimitWarning ? (
+              <p className="text-sm text-amber-700">{tenant.freeLimitWarning}</p>
+            ) : null}
+            <p className="text-xs text-slate-500">
+              Payment gateway not connected yet — plan changes are assigned by SUPER_ADMIN.
+            </p>
+          </>
+        ) : null}
+      </div>
+
+      <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="text-lg font-medium text-slate-900">Branches</h2>
+        <p className="text-sm text-slate-600">
+          Add a second shop/branch. Use the header switcher to set the active branch.
+        </p>
+        {shops.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {shops.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className={
+                  shop?.id === s.id
+                    ? 'rounded-lg bg-teal-700 px-3 py-1.5 text-sm text-white'
+                    : 'rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700'
+                }
+                onClick={() => {
+                  setSelectedShopId(s.id)
+                  setActiveShopId(s.id)
+                }}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <input
+            className={fieldClassName() + ' max-w-xs'}
+            placeholder="New branch name"
+            value={newBranchName}
+            onChange={(e) => setNewBranchName(e.target.value)}
+          />
+          <button
+            type="button"
+            className={primaryButtonClassName()}
+            disabled={!newBranchName.trim() || createBranchMutation.isPending}
+            onClick={() => createBranchMutation.mutate(newBranchName.trim())}
+          >
+            Add branch
+          </button>
+        </div>
+        {createBranchMutation.isError ? (
+          <p className="text-sm text-red-600">
+            {getErrorMessage(createBranchMutation.error, 'Failed to create branch')}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="text-lg font-medium text-slate-900">Notifications</h2>
+        <p className="text-sm text-slate-600">
+          Email reminders run daily at 08:00 when ENABLE_RENTAL_REMINDERS=true. WhatsApp uses
+          wa.me share links only (Cloud API is future work).
+        </p>
+        <button
+          type="button"
+          className={secondaryButtonClassName()}
+          disabled={runRemindersMutation.isPending}
+          onClick={() => runRemindersMutation.mutate()}
+        >
+          {runRemindersMutation.isPending ? 'Sending…' : 'Run reminders now'}
+        </button>
+        {runRemindersMutation.isSuccess ? (
+          <p className="text-sm text-teal-700">
+            Sent {runRemindersMutation.data.sent} reminder(s)
+            {runRemindersMutation.data.skipped ? ' (reminders disabled)' : ''}.
+          </p>
+        ) : null}
+        {runRemindersMutation.isError ? (
+          <p className="text-sm text-red-600">
+            {getErrorMessage(runRemindersMutation.error, 'Failed to run reminders')}
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-4">

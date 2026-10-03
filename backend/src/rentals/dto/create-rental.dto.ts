@@ -34,6 +34,10 @@ export class CreateRentalItemDto {
 }
 
 export class CreateRentalDto {
+  @IsOptional()
+  @IsString()
+  shopId?: string;
+
   @IsString()
   customerId!: string;
 

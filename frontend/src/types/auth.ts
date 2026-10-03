@@ -38,15 +38,43 @@ export interface AuthResponse {
 
 export interface RegisterPayload {
   businessName: string
-  ownerName: string
   email: string
   password: string
+  otp: string
+  /** Optional; backend derives User.name from the email local-part. */
+  ownerName?: string
   phone?: string
   shopName?: string
   slug?: string
 }
 
+/** Pending registration fields stored until OTP verification completes. */
+export interface PendingRegisterPayload {
+  businessName: string
+  email: string
+  password: string
+  phone?: string
+}
+
 export interface LoginPayload {
   email: string
   password: string
+}
+
+export type OtpPurpose = 'REGISTER' | 'LOGIN' | 'RESET_PASSWORD'
+
+export interface SendOtpPayload {
+  email: string
+  purpose: OtpPurpose
+}
+
+export interface VerifyLoginOtpPayload {
+  email: string
+  code: string
+}
+
+export interface ResetPasswordPayload {
+  email: string
+  otp: string
+  newPassword: string
 }

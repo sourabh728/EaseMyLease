@@ -9,6 +9,7 @@ import { paginateMeta } from '../common/dto/pagination-query.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { ListCustomersQueryDto } from './dto/list-customers-query.dto';
+import { resolveShopId } from '../common/utils/shop-context';
 
 @Injectable()
 export class CustomersService {
@@ -18,6 +19,7 @@ export class CustomersService {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
     const where: Prisma.CustomerWhereInput = { tenantId };
+    if (query.shopId) where.shopId = query.shopId;
 
     if (query.search?.trim()) {
       const term = query.search.trim();
@@ -55,10 +57,12 @@ export class CustomersService {
   }
 
   async create(tenantId: string, dto: CreateCustomerDto) {
+    const shopId = await resolveShopId(this.prisma, tenantId, dto.shopId);
     try {
       return await this.prisma.customer.create({
         data: {
           tenantId,
+          shopId,
           name: dto.name.trim(),
           phone: this.normalizePhone(dto.phone),
           whatsapp: dto.whatsapp

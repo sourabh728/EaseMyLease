@@ -56,4 +56,63 @@ export class ReportsController {
   outstanding(@TenantId() tenantId: string) {
     return this.reportsService.outstanding(tenantId);
   }
+
+  @Get('revenue-trend')
+  @Roles(Role.SHOP_OWNER, Role.STAFF)
+  revenueTrend(
+    @TenantId() tenantId: string,
+    @Query() query: ReportDateRangeDto,
+  ) {
+    return this.reportsService.revenueTrend(
+      tenantId,
+      query.fromDate,
+      query.toDate,
+      query.granularity,
+    );
+  }
+
+  @Get('top-items')
+  @Roles(Role.SHOP_OWNER, Role.STAFF)
+  topItems(
+    @TenantId() tenantId: string,
+    @Query() query: ReportDateRangeDto,
+  ) {
+    return this.reportsService.topRentedItems(
+      tenantId,
+      query.fromDate,
+      query.toDate,
+    );
+  }
+
+  @Get('top-categories')
+  @Roles(Role.SHOP_OWNER, Role.STAFF)
+  topCategories(
+    @TenantId() tenantId: string,
+    @Query() query: ReportDateRangeDto,
+  ) {
+    return this.reportsService.topCategories(
+      tenantId,
+      query.fromDate,
+      query.toDate,
+    );
+  }
+
+  @Get('customers')
+  @Roles(Role.SHOP_OWNER, Role.STAFF)
+  customersAnalytics(
+    @TenantId() tenantId: string,
+    @Query() query: ReportDateRangeDto,
+  ) {
+    return this.reportsService.customerAnalytics(
+      tenantId,
+      query.fromDate,
+      query.toDate,
+    );
+  }
+
+  @Get('overdue-aging')
+  @Roles(Role.SHOP_OWNER, Role.STAFF)
+  overdueAging(@TenantId() tenantId: string) {
+    return this.reportsService.overdueAging(tenantId);
+  }
 }

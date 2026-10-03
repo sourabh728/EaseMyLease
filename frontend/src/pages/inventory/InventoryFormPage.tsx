@@ -6,6 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { inventoryService } from '@/services/inventory.service'
 import { categoriesService } from '@/services/categories.service'
+import { useActiveShop } from '@/hooks/useActiveShop'
+import { QrCodeImage } from '@/components/QrCodeImage'
 import { INVENTORY_STATUSES } from '@/types/domain'
 import { getErrorMessage } from '@/utils/error'
 import {
@@ -58,6 +60,7 @@ export function InventoryFormPage() {
   const isEdit = Boolean(id)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { activeShopId } = useActiveShop()
 
   const categoriesQuery = useQuery({
     queryKey: ['categories'],
@@ -74,6 +77,7 @@ export function InventoryFormPage() {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -118,10 +122,13 @@ export function InventoryFormPage() {
     })
   }, [itemQuery.data, reset])
 
+  const watchedCode = watch('itemCode')
+
   const saveMutation = useMutation({
     mutationFn: async (values: FormValues) => {
       const payload = {
         categoryId: values.categoryId,
+        shopId: activeShopId || undefined,
         itemCode: values.itemCode,
         name: values.name,
         description: values.description || undefined,
@@ -181,6 +188,28 @@ export function InventoryFormPage() {
         </h1>
       </div>
 
+      {watchedCode?.trim() ? (
+        <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white p-4">
+          <QrCodeImage value={watchedCode.trim().toUpperCase()} size={140} alt={`QR for ${watchedCode}`} />
+          <div>
+            <p className="text-sm font-medium text-slate-900">Label / QR</p>
+            <p className="mt-1 font-mono text-lg font-semibold tracking-wide text-teal-900">
+              {watchedCode.trim().toUpperCase()}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Print this QR for hang tags. Scanning resolves the item by code.
+            </p>
+            <button
+              type="button"
+              className={secondaryButtonClassName() + ' mt-3'}
+              onClick={() => window.print()}
+            >
+              Print label
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <form
         className="space-y-4 rounded-xl border border-slate-200 bg-white p-5"
         onSubmit={handleSubmit((values) => saveMutation.mutateAsync(values))}
@@ -188,7 +217,10 @@ export function InventoryFormPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
             <span className={labelClassName()}>Item code</span>
-            <input className={fieldClassName()} {...register('itemCode')} />
+            <input
+              className={fieldClassName() + ' font-mono uppercase'}
+              {...register('itemCode')}
+            />
             {errors.itemCode ? (
               <p className="mt-1 text-xs text-red-600">{errors.itemCode.message}</p>
             ) : null}

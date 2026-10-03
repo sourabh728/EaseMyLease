@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { buildWhatsAppShareUrl, rentalsService } from '@/services/rentals.service'
 import { paymentsService } from '@/services/payments.service'
+import { notificationsService } from '@/services/notifications.service'
 import { getErrorMessage } from '@/utils/error'
 import {
   PAYMENT_METHODS,
@@ -44,6 +45,7 @@ export function RentalDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [showPayment, setShowPayment] = useState(false)
   const [receiptBusy, setReceiptBusy] = useState(false)
+  const [reminderMessage, setReminderMessage] = useState<string | null>(null)
 
   const rentalQuery = useQuery({
     queryKey: ['rentals', id],
@@ -87,6 +89,24 @@ export function RentalDetailPage() {
       transactionRef: '',
       notes: '',
     },
+  })
+
+  const reminderMutation = useMutation({
+    mutationFn: async () => {
+      if (!id) throw new Error('Missing rental')
+      return (await notificationsService.sendReminder(id)).data
+    },
+    onSuccess: (data) => {
+      setReminderMessage(
+        data.emailSent
+          ? `Reminder emailed (${data.type}).`
+          : 'Reminder logged (no customer email or already sent today).',
+      )
+      if (data.whatsappShareUrl) {
+        window.open(data.whatsappShareUrl, '_blank', 'noopener,noreferrer')
+      }
+    },
+    onError: (err) => setActionError(getErrorMessage(err, 'Failed to send reminder')),
   })
 
   const paymentMutation = useMutation({
@@ -247,8 +267,19 @@ export function RentalDetailPage() {
         >
           Share on WhatsApp
         </a>
+        {rental.status === 'ACTIVE' || rental.status === 'OVERDUE' ? (
+          <button
+            type="button"
+            className={secondaryButtonClassName()}
+            disabled={reminderMutation.isPending}
+            onClick={() => reminderMutation.mutate()}
+          >
+            {reminderMutation.isPending ? 'Sending…' : 'Send reminder'}
+          </button>
+        ) : null}
       </div>
 
+      {reminderMessage ? <p className="text-sm text-teal-700">{reminderMessage}</p> : null}
       {actionError ? <ErrorState message={actionError} /> : null}
 
       {showPayment ? (

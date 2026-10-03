@@ -20,6 +20,10 @@ export class UpdateInventoryItemDto {
 
   @IsOptional()
   @IsString()
+  shopId?: string | null;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(60)
   itemCode?: string;
 

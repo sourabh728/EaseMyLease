@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { inventoryService } from '@/services/inventory.service'
 import { categoriesService } from '@/services/categories.service'
+import { useActiveShop } from '@/hooks/useActiveShop'
 import { INVENTORY_STATUSES, type InventoryStatus } from '@/types/domain'
 import { getErrorMessage } from '@/utils/error'
 import {
@@ -24,6 +25,7 @@ export function InventoryListPage() {
   const [availableOnly, setAvailableOnly] = useState(false)
   const [minPrice, setMinPrice] = useState('')
   const [maxPrice, setMaxPrice] = useState('')
+  const { shops, activeShopId } = useActiveShop()
 
   const categoriesQuery = useQuery({
     queryKey: ['categories'],
@@ -35,6 +37,7 @@ export function InventoryListPage() {
       page,
       pageSize: 20,
       search: search.trim() || undefined,
+      shopId: shops.length > 1 ? activeShopId || undefined : undefined,
       status: status || undefined,
       categoryId: categoryId || undefined,
       size: size.trim() || undefined,
@@ -44,7 +47,20 @@ export function InventoryListPage() {
       minPrice: minPrice ? Number(minPrice) : undefined,
       maxPrice: maxPrice ? Number(maxPrice) : undefined,
     }),
-    [page, search, status, categoryId, size, color, occasion, availableOnly, minPrice, maxPrice],
+    [
+      page,
+      search,
+      shops.length,
+      activeShopId,
+      status,
+      categoryId,
+      size,
+      color,
+      occasion,
+      availableOnly,
+      minPrice,
+      maxPrice,
+    ],
   )
 
   const inventoryQuery = useQuery({
@@ -62,9 +78,17 @@ export function InventoryListPage() {
           <h1 className="text-2xl font-semibold text-slate-900">Inventory</h1>
           <p className="mt-1 text-sm text-slate-600">Track rental items, pricing, and availability.</p>
         </div>
-        <Link to="/inventory/new" className={primaryButtonClassName() + ' inline-flex no-underline'}>
-          Add item
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            to="/inventory/scan"
+            className="inline-flex rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 no-underline hover:bg-slate-50"
+          >
+            Scan / enter code
+          </Link>
+          <Link to="/inventory/new" className={primaryButtonClassName() + ' inline-flex no-underline'}>
+            Add item
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-3 lg:grid-cols-4">
@@ -186,7 +210,7 @@ export function InventoryListPage() {
           <table className="min-w-full text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
               <tr>
-                <th className="px-4 py-3 font-medium">Code</th>
+                <th className="px-4 py-3 font-medium">Item code</th>
                 <th className="px-4 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">Category</th>
                 <th className="px-4 py-3 font-medium">Size</th>
@@ -198,7 +222,11 @@ export function InventoryListPage() {
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} className="border-b border-slate-100 last:border-0">
-                  <td className="px-4 py-3 font-mono text-xs text-slate-700">{item.itemCode}</td>
+                  <td className="px-4 py-3">
+                    <span className="inline-flex rounded-md bg-teal-50 px-2 py-1 font-mono text-sm font-semibold tracking-wide text-teal-900">
+                      {item.itemCode}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-slate-900">{item.name}</td>
                   <td className="px-4 py-3 text-slate-600">{item.category?.name ?? '—'}</td>
                   <td className="px-4 py-3 text-slate-600">{item.size ?? '—'}</td>

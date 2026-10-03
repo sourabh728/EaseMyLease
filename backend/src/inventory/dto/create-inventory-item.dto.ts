@@ -31,6 +31,10 @@ export class CreateInventoryItemDto {
   @IsNotEmpty()
   categoryId!: string;
 
+  @IsOptional()
+  @IsString()
+  shopId?: string;
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(60)

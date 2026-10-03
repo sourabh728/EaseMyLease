@@ -1,5 +1,4 @@
-import { Type } from 'class-transformer';
-import { IsDateString, IsOptional } from 'class-validator';
+import { IsDateString, IsIn, IsOptional } from 'class-validator';
 
 export class ReportDateRangeDto {
   @IsOptional()
@@ -9,6 +8,11 @@ export class ReportDateRangeDto {
   @IsOptional()
   @IsDateString()
   toDate?: string;
+
+  /** Used by revenue-trend: day (default) or week. */
+  @IsOptional()
+  @IsIn(['day', 'week'])
+  granularity?: 'day' | 'week';
 }
 
 export function resolveDateRange(fromDate?: string, toDate?: string) {

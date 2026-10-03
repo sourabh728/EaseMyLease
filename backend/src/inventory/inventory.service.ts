@@ -4,12 +4,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InventoryStatus, Prisma } from '@prisma/client';
+import { InventoryStatus, Prisma, RentalStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { paginateMeta } from '../common/dto/pagination-query.dto';
 import { CreateInventoryItemDto } from './dto/create-inventory-item.dto';
 import { UpdateInventoryItemDto } from './dto/update-inventory-item.dto';
 import { ListInventoryQueryDto } from './dto/list-inventory-query.dto';
+import { resolveShopId } from '../common/utils/shop-context';
+import {
+  FREE_INVENTORY_SOFT_LIMIT,
+} from '../tenants/tenants.service';
 
 const itemInclude = {
   category: {
@@ -20,6 +24,7 @@ const itemInclude = {
       parent: { select: { id: true, name: true } },
     },
   },
+  shop: { select: { id: true, name: true } },
   images: { orderBy: { sortOrder: 'asc' as const } },
 } satisfies Prisma.InventoryItemInclude;
 
@@ -61,13 +66,83 @@ export class InventoryService {
     return item;
   }
 
+  async findByCode(tenantId: string, itemCode: string) {
+    const code = itemCode.trim().toUpperCase();
+    const item = await this.prisma.inventoryItem.findFirst({
+      where: { tenantId, itemCode: code },
+      include: itemInclude,
+    });
+    if (!item) {
+      throw new NotFoundException(`No inventory item with code ${code}`);
+    }
+    return item;
+  }
+
+  async resolveForFlow(tenantId: string, itemCode: string) {
+    const item = await this.findByCode(tenantId, itemCode);
+    const activeRentalItem = await this.prisma.rentalItem.findFirst({
+      where: {
+        tenantId,
+        inventoryItemId: item.id,
+        rental: {
+          status: {
+            in: [
+              RentalStatus.ACTIVE,
+              RentalStatus.OVERDUE,
+              RentalStatus.RETURN_PENDING,
+              RentalStatus.CONFIRMED,
+            ],
+          },
+        },
+      },
+      include: {
+        rental: {
+          select: {
+            id: true,
+            rentalNumber: true,
+            status: true,
+            expectedReturnDate: true,
+            customer: { select: { id: true, name: true, phone: true } },
+          },
+        },
+      },
+      orderBy: { rental: { createdAt: 'desc' } },
+    });
+
+    return {
+      item,
+      suggestedAction:
+        item.status === InventoryStatus.AVAILABLE
+          ? 'RENT'
+          : item.status === InventoryStatus.ON_RENT ||
+              item.status === InventoryStatus.RESERVED
+            ? 'RETURN'
+            : 'VIEW',
+      activeRental: activeRentalItem?.rental ?? null,
+    };
+  }
+
   async create(tenantId: string, dto: CreateInventoryItemDto) {
     await this.assertCategory(tenantId, dto.categoryId);
+    const shopId = await resolveShopId(this.prisma, tenantId, dto.shopId);
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { plan: true },
+    });
+    const activeCount = await this.prisma.inventoryItem.count({
+      where: { tenantId, status: { not: InventoryStatus.RETIRED } },
+    });
+    const softLimitWarning =
+      tenant?.plan === 'FREE' && activeCount >= FREE_INVENTORY_SOFT_LIMIT
+        ? `FREE plan soft limit reached (${FREE_INVENTORY_SOFT_LIMIT} items). Item was still created.`
+        : null;
 
     try {
-      return await this.prisma.inventoryItem.create({
+      const item = await this.prisma.inventoryItem.create({
         data: {
           tenantId,
+          shopId,
           categoryId: dto.categoryId,
           itemCode: dto.itemCode.trim().toUpperCase(),
           name: dto.name.trim(),
@@ -100,6 +175,7 @@ export class InventoryService {
         },
         include: itemInclude,
       });
+      return softLimitWarning ? { ...item, softLimitWarning } : item;
     } catch (error) {
       this.handleUnique(error);
       throw error;
@@ -148,6 +224,10 @@ export class InventoryService {
       data.location = dto.location.trim() || null;
     if (dto.occasion !== undefined)
       data.occasion = dto.occasion.trim() || null;
+    if (dto.shopId !== undefined) {
+      const shopId = await resolveShopId(this.prisma, tenantId, dto.shopId);
+      data.shop = shopId ? { connect: { id: shopId } } : { disconnect: true };
+    }
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -194,6 +274,8 @@ export class InventoryService {
     query: ListInventoryQueryDto,
   ): Promise<Prisma.InventoryItemWhereInput> {
     const where: Prisma.InventoryItemWhereInput = { tenantId };
+
+    if (query.shopId) where.shopId = query.shopId;
 
     if (query.categoryId) {
       where.categoryId = query.categoryId;

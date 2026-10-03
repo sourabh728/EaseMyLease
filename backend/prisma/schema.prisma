@@ -65,24 +65,79 @@ enum DamageSettlementStatus {
   WAIVED
 }
 
-model Tenant {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum OtpPurpose {
+  REGISTER
+  LOGIN
+  RESET_PASSWORD
+}
 
-  users           User[]
-  shops           Shop[]
-  categories      Category[]
-  inventoryItems  InventoryItem[]
-  inventoryImages InventoryImage[]
-  customers       Customer[]
-  rentals         Rental[]
-  rentalItems     RentalItem[]
-  rentalReturns   RentalReturn[]
-  damageRecords   DamageRecord[]
-  payments        Payment[]
+enum SubscriptionPlan {
+  FREE
+  BASIC
+  PRO
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+}
+
+enum NotificationChannel {
+  EMAIL
+  WHATSAPP
+}
+
+enum NotificationType {
+  RENTAL_DUE_TODAY
+  RENTAL_OVERDUE
+  RENTAL_RECEIPT
+}
+
+enum NotificationDeliveryStatus {
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model EmailOtp {
+  id         String     @id @default(cuid())
+  email      String
+  codeHash   String
+  purpose    OtpPurpose
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int        @default(0)
+  createdAt  DateTime   @default(now())
+
+  @@index([email, purpose])
+  @@index([expiresAt])
+}
+
+model Tenant {
+  id               String             @id @default(cuid())
+  name             String
+  slug             String             @unique
+  plan             SubscriptionPlan   @default(FREE)
+  subscriptionStatus SubscriptionStatus @default(TRIAL)
+  trialEndsAt      DateTime?
+  currentPeriodEnd DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  users            User[]
+  shops            Shop[]
+  categories       Category[]
+  inventoryItems   InventoryItem[]
+  inventoryImages  InventoryImage[]
+  customers        Customer[]
+  rentals          Rental[]
+  rentalItems      RentalItem[]
+  rentalReturns    RentalReturn[]
+  damageRecords    DamageRecord[]
+  payments         Payment[]
+  notificationLogs NotificationLog[]
 }
 
 model User {
@@ -125,7 +180,10 @@ model Shop {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant           Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  inventoryItems   InventoryItem[]
+  customers        Customer[]
+  rentals          Rental[]
 
   @@index([tenantId])
   @@unique([tenantId, name])
@@ -156,6 +214,7 @@ model Category {
 model InventoryItem {
   id              String          @id @default(cuid())
   tenantId        String
+  shopId          String?
   categoryId      String
   itemCode        String
   name            String
@@ -173,10 +232,11 @@ model InventoryItem {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
-  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  category     Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  images       InventoryImage[]
-  rentalItems  RentalItem[]
+  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  shop          Shop?           @relation(fields: [shopId], references: [id], onDelete: SetNull)
+  category      Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  images        InventoryImage[]
+  rentalItems   RentalItem[]
   damageRecords DamageRecord[]
 
   @@unique([tenantId, itemCode])
@@ -184,6 +244,7 @@ model InventoryItem {
   @@index([tenantId, itemCode])
   @@index([tenantId, status])
   @@index([tenantId, categoryId])
+  @@index([tenantId, shopId])
   @@index([tenantId, size])
   @@index([tenantId, color])
   @@index([tenantId, occasion])
@@ -209,6 +270,7 @@ model InventoryImage {
 model Customer {
   id            String   @id @default(cuid())
   tenantId      String
+  shopId        String?
   name          String
   phone         String
   whatsapp      String?
@@ -222,16 +284,19 @@ model Customer {
   updatedAt     DateTime @updatedAt
 
   tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  shop    Shop?    @relation(fields: [shopId], references: [id], onDelete: SetNull)
   rentals Rental[]
 
   @@unique([tenantId, phone])
   @@index([tenantId])
+  @@index([tenantId, shopId])
   @@index([tenantId, name])
 }
 
 model Rental {
   id                 String       @id @default(cuid())
   tenantId           String
+  shopId             String?
   customerId         String
   rentalNumber       String
   rentalStartDate    DateTime
@@ -249,20 +314,45 @@ model Rental {
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  customer      Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  items         RentalItem[]
-  returns       RentalReturn[]
-  damageRecords DamageRecord[]
-  payments      Payment[]
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  shop             Shop?             @relation(fields: [shopId], references: [id], onDelete: SetNull)
+  customer         Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  items            RentalItem[]
+  returns          RentalReturn[]
+  damageRecords    DamageRecord[]
+  payments         Payment[]
+  notificationLogs NotificationLog[]
 
   @@unique([tenantId, rentalNumber])
   @@index([tenantId])
   @@index([tenantId, status])
   @@index([tenantId, customerId])
+  @@index([tenantId, shopId])
   @@index([tenantId, rentalStartDate])
   @@index([tenantId, expectedReturnDate])
   @@index([status])
+}
+
+model NotificationLog {
+  id          String                      @id @default(cuid())
+  tenantId    String
+  type        NotificationType
+  channel     NotificationChannel
+  recipient   String
+  rentalId    String?
+  status      NotificationDeliveryStatus  @default(SENT)
+  dayKey      String
+  errorMessage String?
+  payload     Json?
+  createdAt   DateTime                    @default(now())
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rental Rental? @relation(fields: [rentalId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, rentalId, type, channel, dayKey])
+  @@index([tenantId])
+  @@index([tenantId, type, dayKey])
+  @@index([rentalId])
 }
 
 model RentalItem {
